@@ -1,0 +1,65 @@
+env:
+  - API_KEY: vcjUyXaESPxhZG6VVTXRsr1r
+  - SECRET_KEY: UaznvGJqp4Msc3WxR45xvYslxqKDqIX2
+  - OAUTH_URL: https://aip.baidubce.com/oauth/2.0/token
+  - API_URL: https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions
+
+params: >
+  question="百度的robin是谁?"
+
+steps:
+  # 请求授权
+  - name: get access_json
+    command: get ${OAUTH_URL}
+    executor:
+      type: http
+      config:
+        headers:
+          Accept: application/json
+        queries:
+          grant_type: client_credentials
+          client_id: ${API_KEY}
+          client_secret: ${SECRET_KEY}
+        silent: true
+    output: oauth_json
+
+  # 解析授权的token
+  - name: parse oauth_json
+    depends:
+      - get access_json
+    executor: jq
+    command: .access_token
+    script: ${oauth_json}
+    output: access_token
+
+  # 向文心提问
+  - name: ask question
+    depends:
+      - parse oauth_json
+    command: post ${API_URL}
+    executor:
+      type: http
+      config:
+        headers:
+          Accept: application/json
+        queries:
+          access_token: ${access_token}
+        body: >
+          {"messages": [{"role":"user","content":"${question}"}]}
+        silent: true
+    output: answer_json
+
+  # 解析文心的回答
+  - name: parse answer
+    depends:
+      - ask question
+    executor: jq
+    command: .result
+    script: ${answer_json}
+    output: answer
+
+  # 打印文心的回答
+  - name: show answer
+    depends:
+      - parse answer
+    command: echo ${answer}

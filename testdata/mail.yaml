@@ -1,0 +1,35 @@
+# Email notification settings
+mailOn:
+  failure: true
+  success: false
+
+# SMTP server settings
+smtp:
+  host: "smtp.163.com"
+  port: "25"
+  username: "zzkzs01@163.com"
+  password: "LKSWFZCCZAAVSCQA"
+
+# Error mail configuration
+errorMail:
+  from: "zzkzs01@163.com"
+  to: "zkzhou01@gmail.com"
+  prefix: "[Error]"
+  attachLogs: true
+
+# Info mail configuration
+infoMail:
+  from: "zzkzs01@163.com"
+  to: "zkzhou01@gmail.com"
+  prefix: "[Info]"
+  attachLogs: true
+
+steps:
+  - name: step1
+    executor:
+      type: mail
+      config:
+        to: "zkzhou01@gmail.com"
+        from: "zzkzs01@163.com"
+        subject: "dagu dingdong"
+        message: "this is a message from dagu"

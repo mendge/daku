@@ -1,0 +1,52 @@
+name: ultimate
+description: run a DAG
+schedule: "0 * * * *"
+group: DailyJobs
+tags: example
+env:
+  - LOG_DIR: ${HOME}/logs
+  - PATH: /usr/local/bin:${PATH}
+logDir: ${LOG_DIR}
+restartWaitSec: 60
+histRetentionDays: 3
+delaySec: 1
+maxActiveRuns: 1
+params: param1 param2
+preconditions:
+  - condition: "`echo $2`"
+    expected: "param2"
+mailOn:
+  failure: true
+  success: true
+MaxCleanUpTimeSec: 300
+handlerOn:
+  success:
+    command: "echo succeed"
+  failure:
+    command: "echo failed"
+  cancel:
+    command: "echo canceled"
+  exit:
+    command: "echo finished"
+steps:
+  - name: task1
+    description: some task
+    dir: ${HOME}/logs
+    command: bash
+    stdout: /tmp/outfile
+    output: RESULT_VARIABLE
+    script: |
+      echo "any script"
+    signalOnStop: "SIGINT"
+    continueOn:
+      failure: true
+      skipped: true
+    retryPolicy:
+      limit: 2
+      intervalSec: 5
+    repeatPolicy:
+      repeat: true
+      intervalSec: 60
+    preconditions:
+      - condition: "`echo $1`"
+        expected: "param1"

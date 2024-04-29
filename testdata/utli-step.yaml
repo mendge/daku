@@ -1,0 +1,27 @@
+steps:
+  - name: some task
+    description: some task
+    dir: ${HOME}/logs
+    command: bash
+    stdout: /tmp/outfile
+    output: RESULT_VARIABLE
+    script: |
+      echo "any script"
+    signalOnStop: "SIGINT"
+    mailOn:
+      failure: true
+      success: true
+    continueOn:
+      failure: true
+      skipped: true
+    retryPolicy:
+      limit: 2
+      intervalSec: 5
+    repeatPolicy:
+      repeat: true
+      intervalSec: 60
+    preconditions:
+      - condition: "`echo $1`"
+        expected: "param1"
+    depends:
+      -  some task name step

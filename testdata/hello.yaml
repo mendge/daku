@@ -1,0 +1,7 @@
+steps:
+  - name: step1
+    command: echo hello
+  - name: step2
+    command: echo world
+  - name: step3
+    command: echo "!"
