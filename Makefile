@@ -46,7 +46,7 @@ endif
 	$(DOCKER_CMD) -t yohamta/dagu:latest .
 
 server: go-lint build-dir build-bin
-	./bin/dagu server
+	./bin/daku server
 
 https-server:
 	@DAGU_CERT_FILE=./cert/server-cert.pem \
@@ -62,7 +62,7 @@ gen-pb:
 	protoc -I=$(SRC_DIR) --go_out=$(DST_DIR) $(SRC_DIR)/internal/proto/*.proto
 
 build-bin:
-	go build -o ./bin/dagu .
+	go build -o ./bin/daku .
 #	go build -ldflags="$(LDFLAGS)" -o ./bin/dagu .
 
 build-dir:
