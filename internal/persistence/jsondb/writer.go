@@ -1,7 +1,7 @@
 package jsondb
 
 import (
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/persistence/model"
 	"github.com/mendge/daku/internal/utils"
 	"regexp"
@@ -25,11 +25,11 @@ func (w *writer) write(st *model.Status) error {
 	re, _ := regexp.Compile("\n\r")
 	jsonb = re.ReplaceAll(jsonb, []byte(""))
 
-	oldContent, _ := etcdstore.GetContentOfFile(w.target)
+	oldContent, _ := estore.GetContentOfFile(w.target)
 	oldContent = append(oldContent, '\n')
 	newContent := append(oldContent, jsonb...)
 
-	err := etcdstore.SaveFile(w.target, string(newContent))
+	err := estore.SaveFile(w.target, string(newContent))
 	utils.LogErr("write status", err)
 
 	return err

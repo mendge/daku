@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/imdario/mergo"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/utils"
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v2"
@@ -64,7 +64,7 @@ func (cl *Loader) LoadData(data []byte) (*DAG, error) {
 }
 
 func (cl *Loader) loadBaseConfig(fpath string, opts *BuildDAGOptions) (*DAG, error) {
-	if !etcdstore.FileExist(fpath) {
+	if !estore.FileExist(fpath) {
 		return nil, nil
 	}
 	raw, err := cl.readFile(fpath)
@@ -167,7 +167,7 @@ type fileLoader struct{}
 
 // readFile reads the contents of the file into a map.
 func (fl *fileLoader) readFile(file string) (config map[string]interface{}, err error) {
-	data, err := etcdstore.GetContentOfFile(file)
+	data, err := estore.GetContentOfFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %v", file, err)
 	}

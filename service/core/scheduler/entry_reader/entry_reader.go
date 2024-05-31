@@ -1,15 +1,16 @@
 package entry_reader
 
 import (
-	"github.com/fsnotify/fsnotify"
+	"context"
+	"encoding/json"
 	"github.com/mendge/daku/internal/dag"
 	"github.com/mendge/daku/internal/engine"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/logger"
 	"github.com/mendge/daku/internal/logger/tag"
 	"github.com/mendge/daku/internal/utils"
-	"github.com/mendge/daku/service/core/scheduler/filenotify"
 	"github.com/mendge/daku/service/core/scheduler/scheduler"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -45,10 +46,7 @@ func New(params Params) *EntryReader {
 		logger:        params.Logger,
 		engineFactory: params.EngineFactory,
 	}
-	if err := er.initDags(); err != nil {
-		er.logger.Error("failed to init entry_reader dags", tag.Error(err))
-	}
-	go er.watchDags()
+
 	return er
 }
 
@@ -83,19 +81,27 @@ func (er *EntryReader) Read(now time.Time) ([]*scheduler.Entry, error) {
 	return entries, nil
 }
 
-func (er *EntryReader) initDags() error {
+func (er *EntryReader) LoadDags(serverName string) error {
 	er.dagsLock.Lock()
 	defer er.dagsLock.Unlock()
 	cl := dag.Loader{}
-	fPaths, err := etcdstore.GetFilesOfDir(er.dagsDir)
+	// 从/Cronmap目录下读取负责定时调度的节点
+	var fPaths []string
+	wfs, err := estore.GetValueOfKey(context.Background(), path.Join(estore.CronmapDir, serverName))
+	if err != nil {
+		utils.LogErr("load dag from cronmap", err)
+		return err
+	}
+	err = json.Unmarshal(wfs, &fPaths)
 	if err != nil {
 		return err
 	}
+
 	var fileNames []string
 	for _, fPath := range fPaths {
 		fName := filepath.Base(fPath)
 		if utils.MatchExtension(fName, dag.EXTENSIONS) {
-			d, err := cl.LoadMetadata(filepath.Join(er.dagsDir, fName))
+			d, err := cl.LoadMetadata(fPath)
 			if err != nil {
 				er.logger.Error("failed to read DAG cfg", tag.Error(err))
 				continue
@@ -111,47 +117,51 @@ func (er *EntryReader) initDags() error {
 	return nil
 }
 
-func (er *EntryReader) watchDags() {
-	cl := dag.Loader{}
-	watcher, err := filenotify.New(time.Minute)
-	if err != nil {
-		er.logger.Error("failed to init file watcher", tag.Error(err))
-		return
-	}
-	defer func() {
-		_ = watcher.Close()
-	}()
-	_ = watcher.Add(er.dagsDir)
-	for {
-		select {
-		case event, ok := <-watcher.Events():
-			if !ok {
-				return
-			}
-			if !utils.MatchExtension(event.Name, dag.EXTENSIONS) {
-				continue
-			}
-			er.dagsLock.Lock()
-			if event.Op == fsnotify.Create || event.Op == fsnotify.Write {
-				dag, err := cl.LoadMetadata(filepath.Join(er.dagsDir, filepath.Base(event.Name)))
-				if err != nil {
-					er.logger.Error("failed to read DAG cfg", tag.Error(err))
-				} else {
-					er.dags[filepath.Base(event.Name)] = dag
-					er.logger.Info("reload DAG entry_reader", "file", event.Name)
-				}
-			}
-			if event.Op == fsnotify.Rename || event.Op == fsnotify.Remove {
-				delete(er.dags, filepath.Base(event.Name))
-				er.logger.Info("remove DAG entry_reader", "file", event.Name)
-			}
-			er.dagsLock.Unlock()
-		case err, ok := <-watcher.Errors():
-			if !ok {
-				return
-			}
-			er.logger.Error("watch entry_reader DAGs error", tag.Error(err))
-		}
-	}
-
+func (er *EntryReader) LogErr(msg string, err error) {
+	er.logger.Error(msg, tag.Error(err))
 }
+
+//func (er *EntryReader) watchDags() {
+//	cl := dag.Loader{}
+//	watcher, err := filenotify.New(time.Minute)
+//	if err != nil {
+//		er.logger.Error("failed to init file watcher", tag.Error(err))
+//		return
+//	}
+//	defer func() {
+//		_ = watcher.Close()
+//	}()
+//	_ = watcher.Add(er.dagsDir)
+//	for {
+//		select {
+//		case event, ok := <-watcher.Events():
+//			if !ok {
+//				return
+//			}
+//			if !utils.MatchExtension(event.Name, dag.EXTENSIONS) {
+//				continue
+//			}
+//			er.dagsLock.Lock()
+//			if event.Op == fsnotify.Create || event.Op == fsnotify.Write {
+//				dag, err := cl.LoadMetadata(filepath.Join(er.dagsDir, filepath.Base(event.Name)))
+//				if err != nil {
+//					er.logger.Error("failed to read DAG cfg", tag.Error(err))
+//				} else {
+//					er.dags[filepath.Base(event.Name)] = dag
+//					er.logger.Info("reload DAG entry_reader", "file", event.Name)
+//				}
+//			}
+//			if event.Op == fsnotify.Rename || event.Op == fsnotify.Remove {
+//				delete(er.dags, filepath.Base(event.Name))
+//				er.logger.Info("remove DAG entry_reader", "file", event.Name)
+//			}
+//			er.dagsLock.Unlock()
+//		case err, ok := <-watcher.Errors():
+//			if !ok {
+//				return
+//			}
+//			er.logger.Error("watch entry_reader DAGs error", tag.Error(err))
+//		}
+//	}
+//
+//}

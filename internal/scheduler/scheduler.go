@@ -371,7 +371,7 @@ func handleError(node *Node) {
 	status := node.ReadStatus()
 	if status != NodeStatus_Cancel && status != NodeStatus_Success {
 		if node.RetryPolicy != nil && node.RetryPolicy.Limit > node.ReadRetryCount() {
-			log.Printf("%s failed but scheduled for retry", node.Name)
+			log.Printf("%s failed but core for retry", node.Name)
 			node.incRetryCount()
 			log.Printf("sleep %s for retry", node.RetryPolicy.Interval)
 			time.Sleep(node.RetryPolicy.Interval)

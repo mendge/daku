@@ -1,10 +1,11 @@
 package scheduler
 
 import (
-	"fmt"
+	"context"
 	"github.com/mendge/daku/internal/dag"
 	"github.com/mendge/daku/internal/logger"
 	"github.com/mendge/daku/internal/utils"
+	"github.com/mendge/daku/service/distribution"
 	"os"
 	"os/signal"
 	"sort"
@@ -13,6 +14,7 @@ import (
 )
 
 type Scheduler struct {
+	serverNode  *distribution.ServerNode
 	entryReader EntryReader
 	logDir      string
 	stop        chan struct{}
@@ -22,6 +24,8 @@ type Scheduler struct {
 
 type EntryReader interface {
 	Read(now time.Time) ([]*Entry, error)
+	LoadDags(serverName string) error
+	LogErr(msg string, err error)
 }
 
 type Entry struct {
@@ -82,10 +86,6 @@ func New(params Params) *Scheduler {
 }
 
 func (s *Scheduler) Start() error {
-	if err := s.setupLogFile(); err != nil {
-		return fmt.Errorf("setup log file: %w", err)
-	}
-
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
@@ -93,21 +93,43 @@ func (s *Scheduler) Start() error {
 		s.Stop()
 	}()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.startDistributedManage(ctx)
+
 	s.logger.Info("starting scheduler")
 	s.start()
 
 	return nil
 }
 
-func (s *Scheduler) setupLogFile() (err error) {
-	// mygod : do not build log dir
-	//filename := path.Join(s.logDir, "scheduler.log")
-	//dir := path.Dir(filename)
-	//if err := os.MkdirAll(dir, 0755); err != nil {
-	//	return err
-	//}
-	//s.logger.Info("setup log", "filename", filename)
-	return
+func (s *Scheduler) startDistributedManage(ctx context.Context) {
+	s.serverNode = distribution.GetServerNode()
+
+	sem := make(chan struct{}, 1)
+	sem0 := make(chan struct{}, 1)
+	go s.serverNode.WatchCronmap(ctx, sem, sem0)
+	go func(sem <-chan struct{}) {
+		for {
+			select {
+			case <-sem:
+				if err := s.entryReader.LoadDags(s.serverNode.ServerName); err != nil {
+					s.entryReader.LogErr("failed to reload entry_reader dags", err)
+				}
+			}
+		}
+	}(sem)
+	//time.Sleep(1500 * time.Millisecond)
+	<-sem0
+	go s.serverNode.Campaign(ctx)
+	//time.Sleep(1500 * time.Millisecond)
+	sem1 := make(chan struct{}, 1)
+	go s.serverNode.WatchHealth(ctx, sem1)
+	//time.Sleep(1500 * time.Millisecond)
+	<-sem1
+	go s.serverNode.KeepAlive(ctx)
+	//time.Sleep(1500 * time.Millisecond)
+	go s.serverNode.WatchDags(ctx)
 }
 
 func (s *Scheduler) start() {

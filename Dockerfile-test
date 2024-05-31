@@ -1,0 +1,32 @@
+FROM --platform=$BUILDPLATFORM alpine:latest
+
+ARG TARGET_FILE_URL="https://github.com/mendge/daku/releases/download/release-v1.0.0/daku-v1-fedora-amd64.zip"
+
+ARG USER="daku"
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+EXPOSE 8081
+
+RUN <<EOF
+    apk update
+    apk add --no-cache sudo tzdata
+    addgroup -g ${USER_GID} ${USER}
+    adduser ${USER} -h /home/${USER} -u ${USER_UID} -G ${USER} -D -s /bin/ash
+    echo ${USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USER}
+    chmod 0440 /etc/sudoers.d/${USER}
+EOF
+
+USER daku
+WORKDIR /home/daku
+
+RUN <<EOF
+  wget ${TARGET_FILE_URL} -o dakuv1.zip
+  unzip dakuv1.zip
+  sudo mv ./daku /usr/local/bin/
+EOF
+
+ENV DAGU_HOST=0.0.0.0
+ENV DAGU_PORT=8081
+
+CMD dagu server

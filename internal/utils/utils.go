@@ -427,3 +427,22 @@ func GetFileNameFromPath(fPath string) string {
 }
 
 // GetFileNameFromPath 被增加, 实现的 internal/persistence/jsondb/database 的 prefix
+
+type OnceChan struct {
+	Used bool
+	Ch   chan struct{}
+}
+
+func NewOnceChan() *OnceChan {
+	return &OnceChan{Ch: make(chan struct{}, 1)}
+}
+
+func (c *OnceChan) SendIfUnused() {
+	if !c.Used {
+		c.Ch <- struct{}{}
+	}
+}
+
+func (c *OnceChan) BlockReceive() {
+	<-c.Ch
+}

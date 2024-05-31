@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mendge/daku/internal/dag"
+	"github.com/mendge/daku/internal/etcd/runtime"
 	"github.com/mendge/daku/internal/persistence"
 	"github.com/mendge/daku/internal/persistence/model"
 	"github.com/mendge/daku/internal/scheduler"
-	"github.com/mendge/daku/internal/sock"
 	"github.com/mendge/daku/internal/utils"
 	"os"
 	"os/exec"
@@ -84,8 +84,8 @@ func (e *engineImpl) Rename(oldName, newName string) error {
 
 func (e *engineImpl) Stop(dag *dag.DAG) error {
 	// TODO: fix this not to connect to the DAG directly
-	client := sock.Client{Addr: dag.SockAddr()}
-	_, err := client.Request("POST", "/stop")
+	client := runtime.NewRuntimeClient(dag.SockAddr())
+	_, err := client.Request(runtime.ReqStop)
 	return err
 }
 
@@ -152,10 +152,10 @@ func (e *engineImpl) Retry(dag *dag.DAG, reqId string) (err error) {
 }
 
 func (e *engineImpl) GetCurrentStatus(dag *dag.DAG) (*model.Status, error) {
-	client := sock.Client{Addr: dag.SockAddr()}
-	ret, err := client.Request("GET", "/status")
+	client := runtime.NewRuntimeClient(dag.SockAddr())
+	ret, err := client.Request(runtime.ReqStatus)
 	if err != nil {
-		if errors.Is(err, sock.ErrTimeout) {
+		if errors.Is(err, runtime.ErrTimeout) {
 			return nil, err
 		} else {
 			return model.NewStatusDefault(dag), nil
@@ -179,8 +179,8 @@ func (e *engineImpl) GetStatusByRequestId(dag *dag.DAG, requestId string) (*mode
 
 // TODO 从etcd中获取dag运行时状态
 func (e *engineImpl) getCurrentStatus(dag *dag.DAG) (*model.Status, error) {
-	client := sock.Client{Addr: dag.SockAddr()}
-	ret, err := client.Request("GET", "/status")
+	client := runtime.NewRuntimeClient(dag.SockAddr())
+	ret, err := client.Request(runtime.ReqStatus)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get status: %s", err)
 	}
@@ -211,10 +211,10 @@ func (e *engineImpl) GetRecentHistory(dag *dag.DAG, n int) []*model.StatusFile {
 }
 
 func (e *engineImpl) UpdateStatus(dag *dag.DAG, status *model.Status) error {
-	client := sock.Client{Addr: dag.SockAddr()}
-	res, err := client.Request("GET", "/status")
+	client := runtime.NewRuntimeClient(dag.SockAddr())
+	res, err := client.Request(runtime.ReqStatus)
 	if err != nil {
-		if errors.Is(err, sock.ErrTimeout) {
+		if errors.Is(err, runtime.ErrTimeout) {
 			return err
 		}
 	} else {

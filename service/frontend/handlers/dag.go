@@ -8,7 +8,7 @@ import (
 	"github.com/mendge/daku/internal/constants"
 	"github.com/mendge/daku/internal/dag"
 	"github.com/mendge/daku/internal/engine"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/persistence"
 	"github.com/mendge/daku/internal/persistence/jsondb"
 	domain "github.com/mendge/daku/internal/persistence/model"
@@ -245,7 +245,7 @@ func (h *DAGHandler) getStepLog(dag *dag.DAG, logFile, stepName string) (*models
 		return nil, fmt.Errorf("step name was not found %s", stepName)
 	}
 
-	logContent, err := etcdstore.GetContentOfFile(node.Log)
+	logContent, err := estore.GetContentOfFile(node.Log)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %s: %w", node.Log, err)
 	}
@@ -273,7 +273,7 @@ func (h *DAGHandler) readSchedulerLog(dag *dag.DAG, statusFile string) (*models.
 		logFile = s.Log
 	}
 
-	content, err := etcdstore.GetContentOfFile(logFile)
+	content, err := estore.GetContentOfFile(logFile)
 	if err != nil {
 		return nil, fmt.Errorf("error reading %s: %w", logFile, err)
 	}

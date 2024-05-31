@@ -10,7 +10,7 @@ ARG USER="dagu"
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-EXPOSE 8080
+EXPOSE 8081
 
 RUN <<EOF
     #User and permissions setup
