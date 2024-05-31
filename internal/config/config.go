@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/utils"
 	"github.com/spf13/viper"
 	"os"
@@ -25,15 +25,17 @@ type Config struct {
 	TmpLogDir          string
 	LogDir             string
 	DataDir            string
-	SuspendFlagsDir    string
-	AdminLogsDir       string
-	BaseConfig         string
-	NavbarColor        string
-	NavbarTitle        string
-	Env                map[string]string
-	TLS                *TLS
-	IsAuthToken        bool
-	AuthToken          string
+	PipelineDir        string
+
+	SuspendFlagsDir string
+	AdminLogsDir    string
+	BaseConfig      string
+	NavbarColor     string
+	NavbarTitle     string
+	Env             map[string]string
+	TLS             *TLS
+	IsAuthToken     bool
+	AuthToken       string
 }
 
 type TLS struct {
@@ -88,19 +90,20 @@ func LoadConfig() error {
 	viper.SetDefault("host", "127.0.0.1")
 	viper.SetDefault("port", "8081")
 	viper.SetDefault("command", command)
-	viper.SetDefault("dags", etcdstore.DagDir)
+	viper.SetDefault("dags", estore.DagDir)
 	viper.SetDefault("workDir", "")
 	viper.SetDefault("isBasicAuth", "0")
 	viper.SetDefault("basicAuthUsername", "")
 	viper.SetDefault("basicAuthPassword", "")
 	viper.SetDefault("logEncodingCharset", "")
-	viper.SetDefault("baseConfig", etcdstore.BaseConfigPath)
+	viper.SetDefault("baseConfig", estore.BaseConfigPath)
 	viper.SetDefault("defaultWorkDir", "/tmp/dagu/workdir")
 	viper.SetDefault("tmpLogDir", "/tmp/dagu/logs")
-	viper.SetDefault("logDir", etcdstore.LogDir)
-	viper.SetDefault("dataDir", etcdstore.StatueDir)
-	viper.SetDefault("suspendFlagsDir", etcdstore.SuspendDir)
-	viper.SetDefault("adminLogsDir", etcdstore.AdminLogDir)
+	viper.SetDefault("logDir", estore.LogDir)
+	viper.SetDefault("pipelineDir", estore.PipelineDir)
+	viper.SetDefault("dataDir", estore.StatueDir)
+	viper.SetDefault("suspendFlagsDir", estore.SuspendDir)
+	viper.SetDefault("adminLogsDir", estore.AdminLogDir)
 	viper.SetDefault("navbarColor", "")
 	viper.SetDefault("navbarTitle", "mendge's Daku")
 	viper.SetDefault("isAuthToken", "0")
@@ -155,7 +158,7 @@ func loadLegacyEnvs() {
 }
 
 func getEnv(env, def string) string {
-	v := etcdstore.GetEnvValue(env)
+	v := estore.GetEnvValue(env)
 	if v == "" {
 		return def
 	}
@@ -163,7 +166,7 @@ func getEnv(env, def string) string {
 }
 
 func getEnvI(env string, def int) int {
-	v := etcdstore.GetEnvValue(env)
+	v := estore.GetEnvValue(env)
 	if v == "" {
 		return def
 	}

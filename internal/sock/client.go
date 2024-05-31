@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-var (
-	ErrTimeout           = fmt.Errorf("unix socket timeout")
-	ErrConnectionRefused = fmt.Errorf("unix socket connection failed")
-
-	timeout = time.Millisecond * 3000
-)
+//var (
+//	ErrTimeout           = fmt.Errorf("unix socket timeout")
+//	ErrConnectionRefused = fmt.Errorf("unix socket connection failed")
+//
+//	timeout = time.Millisecond * 3000
+//)
 
 // Client is a unix socket client that can send requests
 // to the frontend over HTTP.

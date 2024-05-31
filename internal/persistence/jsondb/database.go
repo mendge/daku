@@ -6,7 +6,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/persistence"
 	"github.com/mendge/daku/internal/persistence/model"
 	"github.com/mendge/daku/internal/utils"
@@ -69,7 +69,7 @@ func (store *Store) Close() error {
 
 // 读取.dat文件中最新的有效状态行, 解析成model.status对象返回 TOTEST
 func ParseFile(fPath string) (*model.Status, error) {
-	data, err := etcdstore.GetContentOfFile(fPath)
+	data, err := estore.GetContentOfFile(fPath)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	if err != nil {
 		log.Printf("failed to open file. err: %v", err)
@@ -131,7 +131,7 @@ func (store *Store) FindByRequestId(dagFile string, requestId string) (*model.St
 		return nil, fmt.Errorf("requestId is empty")
 	}
 	pattern := store.pattern(dagFile) + "*.dat"
-	matches, err := etcdstore.GetFilesOfDirByPattern(dagFile, pattern)
+	matches, err := estore.GetFilesOfDirByPattern(dagFile, pattern)
 	if len(matches) > 0 || err == nil {
 		sort.Slice(matches, func(i, j int) bool {
 			return strings.Compare(matches[i], matches[j]) >= 0
@@ -163,13 +163,13 @@ func (store *Store) RemoveOld(dagFile string, retentionDays int) error {
 	pattern := store.pattern(dagFile) + "*.dat"
 	var lastErr error = nil
 	if retentionDays >= 0 {
-		matches, _ := etcdstore.GetFilesOfDirByPattern(dagFile, pattern)
+		matches, _ := estore.GetFilesOfDirByPattern(dagFile, pattern)
 		tBaseline := time.Now().AddDate(0, 0, -1*retentionDays)
 		for _, fPath := range matches {
 			tSave, err := time.Parse(tLayout, timestamp(fPath))
 			if err == nil {
 				if tSave.Before(tBaseline) {
-					lastErr = etcdstore.RemoveFile(fPath)
+					lastErr = estore.RemoveFile(fPath)
 				}
 			}
 		}
@@ -188,13 +188,13 @@ func (store *Store) Compact(_, original string) error {
 	fPath := path.Join(filepath.Dir(original), newFileName)
 	w := &writer{target: fPath}
 	if err := w.write(status); err != nil {
-		if err := etcdstore.RemoveFile(fPath); err != nil {
+		if err := estore.RemoveFile(fPath); err != nil {
 			log.Printf("failed to remove %s : %s", fPath, err.Error())
 		}
 		return err
 	}
 	// 删除
-	return etcdstore.RemoveFile(original)
+	return estore.RemoveFile(original)
 }
 
 func (store *Store) normalizeInternalName(name string) string {
@@ -211,30 +211,30 @@ func (store *Store) Rename(oldName, newName string) error {
 	// 具体的.dat文件存储路径, 比如 $data/dagName-md5(dagPath)/
 	oldDir := store.directory(oDagPath, utils.GetFileNameFromPath(oDagPath))
 	newDir := store.directory(nDagPath, utils.GetFileNameFromPath(nDagPath))
-	if !etcdstore.StatExist(oldDir) {
+	if !estore.StatExist(oldDir) {
 		// Nothing to do
 		return nil
 	}
 	// 获取old dag的所有.dat文件,复制为new dag的.dat文件
 	onp := store.pattern(oDagPath) + "*.dat"
-	matches, err := etcdstore.GetFilesOfDirByPattern(store.pattern(oDagPath), onp)
+	matches, err := estore.GetFilesOfDirByPattern(store.pattern(oDagPath), onp)
 	if err != nil {
 		return err
 	}
 	for _, m := range matches {
 		oDatName := path.Base(m)
 		nDatName := strings.Replace(oDatName, oldName, newName, 1)
-		content, err := etcdstore.GetContentOfFile(m)
+		content, err := estore.GetContentOfFile(m)
 		if err != nil {
 			return err
 		}
-		err = etcdstore.SaveFile(path.Join(newDir, nDatName), string(content))
+		err = estore.SaveFile(path.Join(newDir, nDatName), string(content))
 		if err != nil {
 			return err
 		}
 	}
 	// 删除old dag的dat目录
-	return etcdstore.RemoveDir(oldDir)
+	return estore.RemoveDir(oldDir)
 }
 
 // 根据dagPath 和 dagName,将dagPath进行md5哈西,返回一个目录 daguDataDir/DagName-<md5>
@@ -268,7 +268,7 @@ func (store *Store) latestToday(dagFile string, now time.Time) (string, error) {
 	today := now.Format("20060102")
 	pattern := fmt.Sprintf("%s.%s*.*.dat", dagStatueDir, today)
 
-	matches, err := etcdstore.GetFilesOfDirByPattern(dagStatueDir, pattern)
+	matches, err := estore.GetFilesOfDirByPattern(dagStatueDir, pattern)
 	if err == nil || len(matches) > 0 {
 		ret = filterLatest(matches, 1)
 	} else {
@@ -281,7 +281,7 @@ func (store *Store) latestToday(dagFile string, now time.Time) (string, error) {
 }
 
 func (store *Store) latest(pattern string, n int) []string {
-	matches, err := etcdstore.GetFilesOfDirByPattern(store.dir, pattern)
+	matches, err := estore.GetFilesOfDirByPattern(store.dir, pattern)
 	var ret = []string{}
 	if err == nil || len(matches) >= 0 {
 		ret = filterLatest(matches, n)

@@ -9,7 +9,8 @@ import (
 	"github.com/mendge/daku/internal/constants"
 	"github.com/mendge/daku/internal/dag"
 	"github.com/mendge/daku/internal/engine"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
+	"github.com/mendge/daku/internal/etcd/runtime"
 	"github.com/mendge/daku/internal/logger"
 	"github.com/mendge/daku/internal/mailer"
 	"github.com/mendge/daku/internal/pb"
@@ -17,7 +18,6 @@ import (
 	"github.com/mendge/daku/internal/persistence/model"
 	"github.com/mendge/daku/internal/reporter"
 	"github.com/mendge/daku/internal/scheduler"
-	"github.com/mendge/daku/internal/sock"
 	"github.com/mendge/daku/internal/utils"
 	"log"
 	"net/http"
@@ -43,7 +43,7 @@ type Agent struct {
 	logManager       *logManager
 	reporter         *reporter.Reporter
 	historyStore     persistence.HistoryStore
-	socketServer     *sock.Server
+	runtimeServer    *runtime.RuntimeServer
 	requestId        string
 	finished         uint32
 }
@@ -258,11 +258,7 @@ func (a *Agent) setupDatabase() error {
 }
 
 func (a *Agent) setupSocketServer() (err error) {
-	a.socketServer, err = sock.NewServer(
-		&sock.Config{
-			Addr:        a.DAG.SockAddr(),
-			HandlerFunc: a.HandleHTTP,
-		})
+	a.runtimeServer = runtime.NewRuntimeServer(a.DAG.SockAddr(), a.Handle)
 	return
 }
 
@@ -296,21 +292,13 @@ func (a *Agent) run(ctx context.Context) error {
 
 	utils.LogErr("write initial status", a.historyStore.Write(a.Status()))
 
-	listen := make(chan error)
 	go func() {
-		err := a.socketServer.Serve(listen)
-		if err != nil && err != sock.ErrServerRequestedShutdown {
-			log.Printf("failed to start socket frontend %v", err)
-		}
+		a.runtimeServer.Serve()
 	}()
 
 	defer func() {
-		utils.LogErr("shutdown socket frontend", a.socketServer.Shutdown())
+		utils.LogErr("shutdown socket frontend", a.runtimeServer.Shutdown())
 	}()
-
-	if err := <-listen; err != nil {
-		return fmt.Errorf("failed to start the socket frontend")
-	}
 
 	done := make(chan *scheduler.Node)
 	defer close(done)
@@ -399,28 +387,29 @@ var (
 	stopRe   = regexp.MustCompile(`^/stop[/]?$`)
 )
 
-func (a *Agent) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("content-type", "application/json")
-	switch {
-	case r.Method == http.MethodGet && statusRe.MatchString(r.URL.Path):
+func (a *Agent) Handle(server *runtime.RuntimeServer, event *runtime.Event) {
+	if event.Type == runtime.ReqStatus {
 		status := a.Status()
 		status.Status = scheduler.SchedulerStatus_Running
 		b, err := status.ToJson()
 		if err != nil {
-			encodeError(w, err)
+			event.Type = runtime.RespErr
+			event.Data = err.Error()
+			server.Write(event)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(b)
-	case r.Method == http.MethodPost && stopRe.MatchString(r.URL.Path):
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		event.Type = runtime.Response
+		event.Data = string(b)
+		server.Write(event)
+
+	} else if event.Type == runtime.ReqStop {
+		event.Type = runtime.Response
+		event.Data = "OK"
+		server.Write(event)
 		go func() {
 			log.Printf("stop request received. shutting down...")
 			a.signal(syscall.SIGTERM, true)
 		}()
-	default:
-		encodeError(w, &HTTPError{Code: http.StatusNotFound, Message: "Not found"})
 	}
 }
 
@@ -461,7 +450,7 @@ func (l *logManager) uploadLog(graph *scheduler.ExecutionGraph) error {
 	if err != nil {
 		return err
 	}
-	err = etcdstore.SaveFile(l.remoteScLogPath, string(data))
+	err = estore.SaveFile(l.remoteScLogPath, string(data))
 	if err != nil {
 		return err
 	}
@@ -473,7 +462,7 @@ func (l *logManager) uploadLog(graph *scheduler.ExecutionGraph) error {
 				return err
 			}
 			remoteStepLogPath := strings.Replace(localStepLogPath, l.localLogDir, l.remoteLogDir, 1)
-			err = etcdstore.SaveFile(remoteStepLogPath, string(data))
+			err = estore.SaveFile(remoteStepLogPath, string(data))
 			if err != nil {
 				return err
 			}

@@ -3,7 +3,7 @@ package local
 import (
 	"fmt"
 	"github.com/mendge/daku/internal/dag"
-	"github.com/mendge/daku/internal/etcdstore"
+	"github.com/mendge/daku/internal/etcd/estore"
 	"github.com/mendge/daku/internal/grep"
 	"github.com/mendge/daku/internal/persistence"
 	"github.com/mendge/daku/internal/utils"
@@ -43,7 +43,7 @@ func (d *dagStoreImpl) GetDetails(name string) (*dag.DAG, error) {
 
 func (d *dagStoreImpl) GetSpec(name string) (string, error) {
 	fPath := d.fileLocation(name)
-	data, err := etcdstore.GetContentOfFile(fPath)
+	data, err := estore.GetContentOfFile(fPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read DAG spec file: %s", err)
 	}
@@ -59,11 +59,11 @@ func (d *dagStoreImpl) UpdateSpec(name string, spec []byte) error {
 	}
 
 	fPath := d.fileLocation(name)
-	if !etcdstore.FileExist(fPath) {
+	if !estore.FileExist(fPath) {
 		return fmt.Errorf("the DAG file %s does not exist", fPath)
 	}
 
-	err = etcdstore.SaveFile(fPath, string(spec))
+	err = estore.SaveFile(fPath, string(spec))
 	if err != nil {
 		return fmt.Errorf("failed to update DAG file: %s", err)
 	}
@@ -72,15 +72,15 @@ func (d *dagStoreImpl) UpdateSpec(name string, spec []byte) error {
 
 func (d *dagStoreImpl) Create(name string, spec []byte) (string, error) {
 	fPath := d.fileLocation(name)
-	if etcdstore.FileExist(fPath) {
+	if estore.FileExist(fPath) {
 		return "", fmt.Errorf("the DAG file %s already exists", fPath)
 	}
-	return name, etcdstore.SaveFile(fPath, string(spec))
+	return name, estore.SaveFile(fPath, string(spec))
 }
 
 func (d *dagStoreImpl) Delete(name string) error {
 	fPath := d.fileLocation(name)
-	err := etcdstore.RemoveFile(fPath)
+	err := estore.RemoveFile(fPath)
 	if err != nil {
 		return fmt.Errorf("failed to delete DAG file: %s", err)
 	}
@@ -104,7 +104,7 @@ func (d *dagStoreImpl) normalizeFilename(file string) string {
 
 func (d *dagStoreImpl) List() (ret []*dag.DAG, errs []string, err error) {
 	// check dir has files
-	fis, err := etcdstore.GetFilesOfDir(d.dir)
+	fis, err := estore.GetFilesOfDir(d.dir)
 	if err != nil {
 		errs = append(errs, err.Error())
 		return
@@ -180,7 +180,7 @@ func (d *dagStoreImpl) Load(name string) (*dag.DAG, error) {
 func (d *dagStoreImpl) Rename(oldDAGPath, newDAGPath string) error {
 	oldPath := d.fileLocation(oldDAGPath)
 	newPath := d.fileLocation(newDAGPath)
-	if err := etcdstore.Rename(oldPath, newPath); err != nil {
+	if err := estore.Rename(oldPath, newPath); err != nil {
 		return err
 	}
 	return nil

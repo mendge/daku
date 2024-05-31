@@ -10,7 +10,7 @@ import (
 
 func GetLocalClient() (*clientv3.Client, error) {
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   []string{"127.0.0.1:2379"},
+		Endpoints:   []string{"http://192.168.135.10:20000", "http://192.168.135.10:20002", "http://192.168.135.10:20004"},
 		DialTimeout: 5 * time.Second,
 	})
 	//defer cli.Close()
